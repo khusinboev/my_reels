@@ -30,8 +30,8 @@ import instaloader
 
 # MUHIM: Bu yerga o'zingizning Instagram akkauntingiz ma'lumotlarini kiriting
 # Bu akkaunt orqali bot Instagramga kiradi. Xavfsizlik uchun alohida akkaunt ochish tavsiya etiladi.
-INSTAGRAM_USERNAME = "YOUR_INSTAGRAM_USERNAME"  # O'zgartiring
-INSTAGRAM_PASSWORD = "YOUR_INSTAGRAM_PASSWORD"  # O'zgartiring
+INSTAGRAM_USERNAME = "intelsoftmeta@gmail.com"  # O'zgartiring
+INSTAGRAM_PASSWORD = "paro!123"  # O'zgartiring
 
 L = instaloader.Instaloader(
     download_pictures=True,
