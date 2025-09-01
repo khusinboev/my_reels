@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("insta-bot")
 
 # ----------------------- Regex -------------------------
+# /p/, /reel/, /tv/, /stories/
 INSTAGRAM_URL_PATTERN = re.compile(
     r"(https?://(?:www\.)?instagram\.com/"
     r"(?:p|reel|tv|stories)/[A-Za-z0-9_\-/.?=&]+)"
@@ -27,7 +28,6 @@ INSTAGRAM_URL_PATTERN = re.compile(
 
 # ----------------------- Router ------------------------
 user_router = Router()
-
 
 async def cache_download(user_id: int, url: str, title: str, file_id: str, media_type: str):
     sql.execute(
@@ -37,14 +37,12 @@ async def cache_download(user_id: int, url: str, title: str, file_id: str, media
     )
     db.commit()
 
-
 def get_cached_file(url: str):
     sql.execute("SELECT file_id, title, media_type FROM public.downloads WHERE url=%s", (url,))
     row = sql.fetchone()
     if row:
         return row[0], row[1], row[2]
     return None
-
 
 # ------------------ Commands ---------------------------
 
@@ -57,18 +55,16 @@ async def start_cmd(message: Message):
         parse_mode="HTML"
     )
 
-
 @user_router.message(Command("help"))
 async def help_cmd(message: Message):
     await message.answer(
         "<b>Yordam:</b>\n"
         "- Instagram <i>post, reel, tv, stories</i> havolasini yuboring.\n"
         "- Faqat <u>ochiq (public)</u> akkauntlardan yuklab olish mumkin.\n"
-        "- Havolada xatolik bo'lsa, qayta yuboring.\n\n"
+        "- Havolada xatolik bo‘lsa, qayta yuboring.\n\n"
         "- Admin: @adkhambek_4",
         parse_mode="HTML"
     )
-
 
 @user_router.callback_query(F.data == "check", F.message.chat.type == ChatType.PRIVATE)
 async def check(call: CallbackQuery):
@@ -77,7 +73,7 @@ async def check(call: CallbackQuery):
         check_status, channels = await CheckData.check_member(bot, user_id)
         if not check_status:
             await call.answer(
-                text="Botdan foydalanish uchun barcha kanallarga a'zo bo'ling.",
+                text="Botdan foydalanish uchun barcha kanallarga a'zo bo‘ling.",
                 show_alert=True
             )
             return
@@ -99,7 +95,6 @@ async def check(call: CallbackQuery):
             message_id=call.message.message_id
         )
 
-
 # ------------------ Downloader -------------------------
 
 async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tuple[list[Path], str, str]:
@@ -110,40 +105,23 @@ async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tupl
             percent = d.get("_percent_str", "0%").strip()
             progress_cb(percent)
 
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'continue_download': False,
-        'format': 'best[ext=mp4]/best',
-        'outtmpl': str(temp_dir / '%(title).50s.%(ext)s'),
-        'noplaylist': True,
-        'ignoreerrors': True,
-        'extract_flat': False,
-        'force_overwrites': True,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        }
+    opts = {
+        "quiet": True,
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "outtmpl": str(temp_dir / "%(title).50s.%(ext)s"),
+        "noplaylist": False,
+        "playlist_items": "1-10",
+        "progress_hooks": [hook],
     }
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            title = info.get('title', 'Instagram media')
-            description = info.get('description', '')
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=True)
 
-        files = sorted(f for f in temp_dir.iterdir() if f.is_file() and not f.name.startswith('.'))
-        return files, title, description
+    title = info.get("title", "Instagram media")
+    description = info.get("description", "")
 
-    except Exception as e:
-        log.error(f"Download error: {e}")
-        raise
-
+    files = sorted(f for f in temp_dir.iterdir() if f.is_file() and not f.name.startswith('.'))
+    return files, title, description
 
 # ------------------ Main Handler -----------------------
 
@@ -154,7 +132,7 @@ async def process_message(message: Message):
 
     if not check_status:
         await message.answer(
-            "❗ Iltimos, quyidagi kanallarga a'zo bo'ling:",
+            "❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
             reply_markup=await CheckData.channels_btn(channels)
         )
         return
@@ -165,12 +143,14 @@ async def process_message(message: Message):
 
     url_match = INSTAGRAM_URL_PATTERN.search(message.text)
     if not url_match:
-        await message.answer("❌ Iltimos, to'g'ri Instagram havolasini yuboring.")
+        await message.answer("❌ Iltimos, to‘g‘ri Instagram havolasini yuboring.")
         return
 
+    # Normalize link
     url = url_match.group(0)
     url = url.split("?")[0].rstrip("/")
 
+    # Check cache (only for single media)
     cached = get_cached_file(url)
     if cached:
         file_id, title, media_type = cached
@@ -181,14 +161,19 @@ async def process_message(message: Message):
             await message.answer_photo(photo=file_id, caption=caption)
         return
 
+    # Loading message
     loading_msg = await message.answer("⏳ Yuklanmoqda… 0%")
+
+    loop = asyncio.get_running_loop()
     progress = {"percent": "0%"}
 
     async def update_progress(new_text: str):
         try:
             await loading_msg.edit_text(new_text)
         except TelegramBadRequest as e:
-            if "message is not modified" not in str(e):
+            if "message is not modified" in e.message:
+                pass
+            else:
                 log.warning(f"Edit error: {e}")
         except Exception as e:
             log.warning(f"Unexpected edit error: {e}")
@@ -196,7 +181,11 @@ async def process_message(message: Message):
     def progress_cb(percent):
         if percent != progress["percent"]:
             progress["percent"] = percent
-            asyncio.create_task(update_progress(f"⏳ Yuklanmoqda… {percent}"))
+            loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(
+                    update_progress(f"⏳ Yuklanmoqda… {percent}")
+                )
+            )
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir_str:
@@ -210,15 +199,9 @@ async def process_message(message: Message):
             caption = f"🎬 <b>{title}</b>\n\n📝 {short_desc}\n\n📥 Yuklab olindi: @my_reels_robot"
 
             sent_file_ids = []
-            media_type = None
-
             for idx, path in enumerate(files):
-                file_size = path.stat().st_size
-                if file_size > 50 * 1024 * 1024:  # 50MB limit
-                    continue
-
                 cur_caption = caption if idx == 0 else None
-
+                media_type = None
                 if path.suffix.lower() in ('.jpg', '.jpeg', '.png'):
                     sent = await message.answer_photo(
                         photo=FSInputFile(path),
@@ -232,21 +215,24 @@ async def process_message(message: Message):
                     sent = await message.answer_video(
                         video=FSInputFile(path),
                         caption=cur_caption,
-                        parse_mode="HTML",
-                        width=1920,
-                        height=1080,
-                        duration=0
+                        parse_mode="HTML"
                     )
                     if sent.video:
                         sent_file_ids.append(sent.video.file_id)
                         media_type = "video"
 
+            # Cache only if single media
             if len(files) == 1 and sent_file_ids:
                 await cache_download(user_id, url, title, sent_file_ids[0], media_type)
 
         await loading_msg.delete()
 
+    except TelegramBadRequest as e:
+        await loading_msg.edit_text("⚠️ Telegram yuklashni rad etdi. Keyinroq urinib ko‘ring.")
+        await bot.send_message(ADMIN_ID[0], f"BadRequest: {e}\nURL: {url}")
     except Exception as e:
-        await loading_msg.edit_text("⚠️ Yuklashda xatolik yuz berdi. Iltimos, keyinroq urunib ko'ring.")
-        log.error(f"Download error: {e}")
+        await loading_msg.edit_text("⚠️ Yuklashda xatolik yuz berdi. Agar akkaunt shaxsiy bo'lsa, yuklab bo'lmaydi.")
         await bot.send_message(ADMIN_ID[0], f"Error: {e}\nURL: {url}")
+    finally:
+        with contextlib.suppress(Exception):
+            await loading_msg.delete()
