@@ -31,8 +31,8 @@ INSTAGRAM_URL_PATTERN = re.compile(
 user_router = Router()
 
 # Instagram credentials (should be set as environment variables)
-INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "")
-INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD", "")
+INSTAGRAM_USERNAME = "intelsoftmeta@gmail.com"
+INSTAGRAM_PASSWORD = "paro!123"
 
 
 async def cache_download(user_id: int, url: str, title: str, file_id: str, media_type: str):
