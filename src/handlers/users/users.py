@@ -30,8 +30,8 @@ INSTAGRAM_URL_PATTERN = re.compile(
 # ----------------------- Router ------------------------
 user_router = Router()
 
-INSTAGRAM_USERNAME = "your_username"
-INSTAGRAM_PASSWORD = "your_password"
+INSTAGRAM_USERNAME = "intelsoftmeta@gmail.com"
+INSTAGRAM_PASSWORD = "paro!123"
 
 
 async def cache_download(user_id: int, url: str, title: str, file_id: str, media_type: str):
