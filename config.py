@@ -36,5 +36,5 @@ bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(link_preview_is_disabled
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-INSTA_USERNAME = "intelsoftmeta@gmail.com"
-INSTA_PASSWORD = "paro!123"
+INSTA_USERNAME = os.getenv("INSTA_USERNAME")
+INSTA_PASSWORD = os.getenv("INSTA_PASSWORD")
