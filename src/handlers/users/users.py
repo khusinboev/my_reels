@@ -33,42 +33,6 @@ user_router = Router()
 INSTAGRAM_USERNAME = "your_username"
 INSTAGRAM_PASSWORD = "your_password"
 
-async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tuple[list[Path], str, str]:
-    import yt_dlp
-
-    def hook(d):
-        if d.get("status") == "downloading" and progress_cb:
-            percent = d.get("_percent_str", "0%").strip()
-            progress_cb(percent)
-
-    opts = {
-        "quiet": True,
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "outtmpl": str(temp_dir / "%(title).50s.%(ext)s"),
-        "noplaylist": False,
-        "playlist_items": "1-10",
-        "progress_hooks": [hook],
-        "cookies": "/home/myreels/cookies.txt",
-    }
-
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-    except Exception as e:
-        # Agar cookie yaroqsiz bo‘lsa, yangilash
-        if "login required" in str(e).lower():
-            await refresh_cookies(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-        else:
-            raise
-
-    title = info.get("title", "Instagram media")
-    description = info.get("description", "")
-
-    files = sorted(f for f in temp_dir.iterdir() if f.is_file() and not f.name.startswith('.'))
-    return files, title, description
-
 
 async def cache_download(user_id: int, url: str, title: str, file_id: str, media_type: str):
     sql.execute(
@@ -144,7 +108,6 @@ async def check(call: CallbackQuery):
 # ------------------ Downloader -------------------------
 
 async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tuple[list[Path], str, str]:
-    """Download Instagram media using yt-dlp."""
     import yt_dlp
 
     def hook(d):
@@ -156,18 +119,27 @@ async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tupl
         "quiet": True,
         "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "outtmpl": str(temp_dir / "%(title).50s.%(ext)s"),
-        "noplaylist": False,  # Allow downloading multiple if carousel
-        "playlist_items": "1-10",  # Limit to first 10 if many
+        "noplaylist": False,
+        "playlist_items": "1-10",
         "progress_hooks": [hook],
-        "cookies": "/home/myreels/cookies.txt",  # 🔑 cookie fayl yo‘li
+        "cookies": "/home/myreels/cookies.txt",
     }
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        title = info.get("title", "Instagram media")
-        description = info.get("description", "")
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+    except Exception as e:
+        # Agar cookie yaroqsiz bo‘lsa, yangilash
+        if "login required" in str(e).lower():
+            await refresh_cookies(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+        else:
+            raise
 
-    # Collect downloaded files
+    title = info.get("title", "Instagram media")
+    description = info.get("description", "")
+
     files = sorted(f for f in temp_dir.iterdir() if f.is_file() and not f.name.startswith('.'))
     return files, title, description
 
