@@ -14,6 +14,7 @@ from aiogram.exceptions import TelegramBadRequest
 
 from config import bot, ADMIN_ID, db, sql
 from src.keyboards.keyboard_func import CheckData
+from src.utils.cookie_refresher import refresh_cookies
 
 # ----------------------- Logging -----------------------
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +29,45 @@ INSTAGRAM_URL_PATTERN = re.compile(
 
 # ----------------------- Router ------------------------
 user_router = Router()
+
+INSTAGRAM_USERNAME = "your_username"
+INSTAGRAM_PASSWORD = "your_password"
+
+async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tuple[list[Path], str, str]:
+    import yt_dlp
+
+    def hook(d):
+        if d.get("status") == "downloading" and progress_cb:
+            percent = d.get("_percent_str", "0%").strip()
+            progress_cb(percent)
+
+    opts = {
+        "quiet": True,
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "outtmpl": str(temp_dir / "%(title).50s.%(ext)s"),
+        "noplaylist": False,
+        "playlist_items": "1-10",
+        "progress_hooks": [hook],
+        "cookies": "/home/myreels/cookies.txt",
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+    except Exception as e:
+        # Agar cookie yaroqsiz bo‘lsa, yangilash
+        if "login required" in str(e).lower():
+            await refresh_cookies(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+        else:
+            raise
+
+    title = info.get("title", "Instagram media")
+    description = info.get("description", "")
+
+    files = sorted(f for f in temp_dir.iterdir() if f.is_file() and not f.name.startswith('.'))
+    return files, title, description
 
 
 async def cache_download(user_id: int, url: str, title: str, file_id: str, media_type: str):
