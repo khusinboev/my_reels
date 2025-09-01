@@ -98,29 +98,36 @@ async def check(call: CallbackQuery):
 # ------------------ Downloader -------------------------
 
 async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tuple[list[Path], str, str]:
-    import yt_dlp
+    import instaloader
 
-    def hook(d):
-        if d.get("status") == "downloading" and progress_cb:
-            percent = d.get("_percent_str", "0%").strip()
-            progress_cb(percent)
+    L = instaloader.Instaloader(
+        download_pictures=True,
+        download_videos=True,
+        download_video_thumbnails=False,
+        download_geotags=False,
+        download_comments=False,
+        save_metadata=False,
+        compress_json=False,
+        filename_pattern="{shortcode}"
+    )
 
-    opts = {
-        "quiet": True,
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "outtmpl": str(temp_dir / "%(title).50s.%(ext)s"),
-        "noplaylist": False,
-        "playlist_items": "1-10",
-        "progress_hooks": [hook],
-    }
+    # Extract shortcode from URL
+    shortcode = url.split('/')[-1]
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
+    try:
+        post = instaloader.Post.from_shortcode(L.context, shortcode)
+    except Exception as e:
+        if "Login required" in str(e) or "403" in str(e):
+            raise Exception("Content is private or requires login.")
+        else:
+            raise
 
-    title = info.get("title", "Instagram media")
-    description = info.get("description", "")
+    L.download_post(post, target=temp_dir)
 
-    files = sorted(f for f in temp_dir.iterdir() if f.is_file() and not f.name.startswith('.'))
+    title = post.owner_username + " - " + (post.caption[:50] if post.caption else "Instagram media")
+    description = post.caption or ""
+
+    files = sorted(f for f in temp_dir.iterdir() if f.is_file() and not f.name.endswith(('.txt', '.json', '.xz')) and not f.name.startswith('.'))
     return files, title, description
 
 # ------------------ Main Handler -----------------------
@@ -162,35 +169,12 @@ async def process_message(message: Message):
         return
 
     # Loading message
-    loading_msg = await message.answer("⏳ Yuklanmoqda… 0%")
-
-    loop = asyncio.get_running_loop()
-    progress = {"percent": "0%"}
-
-    async def update_progress(new_text: str):
-        try:
-            await loading_msg.edit_text(new_text)
-        except TelegramBadRequest as e:
-            if "message is not modified" in e.message:
-                pass
-            else:
-                log.warning(f"Edit error: {e}")
-        except Exception as e:
-            log.warning(f"Unexpected edit error: {e}")
-
-    def progress_cb(percent):
-        if percent != progress["percent"]:
-            progress["percent"] = percent
-            loop.call_soon_threadsafe(
-                lambda: asyncio.create_task(
-                    update_progress(f"⏳ Yuklanmoqda… {percent}")
-                )
-            )
+    loading_msg = await message.answer("⏳ Yuklanmoqda…")
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir_str:
             temp_dir = Path(temp_dir_str)
-            files, title, description = await download_instagram(url, temp_dir, progress_cb)
+            files, title, description = await download_instagram(url, temp_dir)
 
             if not files:
                 raise Exception("Hech qanday media yuklanmadi.")
@@ -199,9 +183,9 @@ async def process_message(message: Message):
             caption = f"🎬 <b>{title}</b>\n\n📝 {short_desc}\n\n📥 Yuklab olindi: @my_reels_robot"
 
             sent_file_ids = []
+            media_type = None
             for idx, path in enumerate(files):
                 cur_caption = caption if idx == 0 else None
-                media_type = None
                 if path.suffix.lower() in ('.jpg', '.jpeg', '.png'):
                     sent = await message.answer_photo(
                         photo=FSInputFile(path),
