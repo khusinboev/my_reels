@@ -37,7 +37,7 @@ INSTAGRAM_URL_PATTERN = re.compile(
 
 # MUHIM: Bu yerga FAQAT Instagram akkauntingizning USERNAME'ini kiriting.
 # PAROL KERAK EMAS. Bot shu nomdagi sessiya faylini qidiradi.
-INSTAGRAM_USERNAME = "YOUR_INSTAGRAM_USERNAME"  # O'zgartiring!
+INSTAGRAM_USERNAME = "intelsoftmeta@gmail.com"  # O'zgartiring!
 
 L = instaloader.Instaloader(
     download_pictures=True,
