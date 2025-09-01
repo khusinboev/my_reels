@@ -21,13 +21,13 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, FSInputFile, InputMediaPhoto, InputMediaVideo
 from aiogram.exceptions import TelegramBadRequest
 
-from config import bot, ADMIN_ID, db, sql
+from config import bot, ADMIN_ID, db, sql, INSTA_USERNAME, INSTA_PASSWORD
 from src.keyboards.keyboard_func import CheckData
 
 # ----------------------- Logging -----------------------
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("insta-bot")
-
+COOKIE_FILE_PATH = "/home/myreels/my_reels/instagram_cookies.txt"
 # ----------------------- Constants ----------------------
 INSTAGRAM_URL_PATTERN = re.compile(
     r"(https?://(?:www\.)?instagram\.com/"
@@ -128,10 +128,13 @@ class InstagramDownloader:
             cmd = [
                 'yt-dlp',
                 '--no-warnings',
+                '--extract-flat', 'false',
                 '--write-info-json',
                 '--output', output_template,
                 url
-            ]  # Fix: '--extract-flat', 'false' olib tashlandi
+            ]
+            if os.path.exists(COOKIE_FILE_PATH):
+                cmd.extend(['--cookies', COOKIE_FILE_PATH])  # Cookie faylini qo'shish
 
             result = await asyncio.get_event_loop().run_in_executor(
                 executor,
@@ -183,6 +186,8 @@ class InstagramDownloader:
                     }
                 }
             }
+            if os.path.exists(COOKIE_FILE_PATH):
+                config['extractor']['instagram']['cookies'] = COOKIE_FILE_PATH  # Cookie faylini qo'shish
 
             config_file = temp_dir / 'config.json'
             with open(config_file, 'w') as f:
@@ -239,7 +244,26 @@ class InstagramDownloader:
                 request_timeout=30,
                 rate_controller=None
             )
+            # --- YANGI QISM: Instaloaderga login qilish ---
+            SESSION_FILE = temp_dir / f"{INSTA_USERNAME}.session"  # Har bir foydalanuvchi uchun alohida sessiya
 
+            if not INSTA_USERNAME or not INSTA_PASSWORD:
+                log.warning("INSTA_USERNAME or INSTA_PASSWORD not set for Instaloader. May fail.")
+                # Agar login ma'lumotlari yo'q bo'lsa, anonim urinishni davom ettirish
+            else:
+                try:
+                    L.load_session_from_file(INSTA_USERNAME, filename=SESSION_FILE)
+                    log.info(f"Instaloader session loaded for {INSTA_USERNAME}.")
+                except FileNotFoundError:
+                    log.info(f"Instaloader session file not found for {INSTA_USERNAME}. Logging in...")
+                    L.login(INSTA_USERNAME, INSTA_PASSWORD)
+                    L.save_session_to_file(SESSION_FILE)  # Sessiyani saqlash
+                    log.info(f"Instaloader logged in and session saved for {INSTA_USERNAME}.")
+                except Exception as e:
+                    log.error(f"Instaloader login/session error: {e}")
+                    # Login xatosi bo'lsa, keyingi metodga o'tish yoki xato qaytarish
+                    raise Exception(f"Instaloader login failed: {e}")
+            # --- YANGI QISM TUGADI ---
             # Add some delay to avoid rate limits
             time.sleep(2)
 
