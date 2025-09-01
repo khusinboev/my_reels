@@ -14,7 +14,6 @@ from aiogram.exceptions import TelegramBadRequest
 
 from config import bot, ADMIN_ID, db, sql
 from src.keyboards.keyboard_func import CheckData
-from src.utils.cookie_refresher import refresh_cookies
 
 # ----------------------- Logging -----------------------
 logging.basicConfig(level=logging.INFO)
@@ -30,10 +29,6 @@ INSTAGRAM_URL_PATTERN = re.compile(
 # ----------------------- Router ------------------------
 user_router = Router()
 
-INSTAGRAM_USERNAME = "intelsoftmeta@gmail.com"
-INSTAGRAM_PASSWORD = "paro!123"
-
-
 async def cache_download(user_id: int, url: str, title: str, file_id: str, media_type: str):
     sql.execute(
         "INSERT INTO public.downloads (user_id, url, title, file_id, media_type, date) VALUES (%s, %s, %s, %s, %s, %s) "
@@ -42,14 +37,12 @@ async def cache_download(user_id: int, url: str, title: str, file_id: str, media
     )
     db.commit()
 
-
 def get_cached_file(url: str):
     sql.execute("SELECT file_id, title, media_type FROM public.downloads WHERE url=%s", (url,))
     row = sql.fetchone()
     if row:
         return row[0], row[1], row[2]
     return None
-
 
 # ------------------ Commands ---------------------------
 
@@ -62,7 +55,6 @@ async def start_cmd(message: Message):
         parse_mode="HTML"
     )
 
-
 @user_router.message(Command("help"))
 async def help_cmd(message: Message):
     await message.answer(
@@ -73,7 +65,6 @@ async def help_cmd(message: Message):
         "- Admin: @adkhambek_4",
         parse_mode="HTML"
     )
-
 
 @user_router.callback_query(F.data == "check", F.message.chat.type == ChatType.PRIVATE)
 async def check(call: CallbackQuery):
@@ -104,7 +95,6 @@ async def check(call: CallbackQuery):
             message_id=call.message.message_id
         )
 
-
 # ------------------ Downloader -------------------------
 
 async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tuple[list[Path], str, str]:
@@ -122,27 +112,16 @@ async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tupl
         "noplaylist": False,
         "playlist_items": "1-10",
         "progress_hooks": [hook],
-        "cookies": "/home/myreels/cookies.txt",
     }
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-    except Exception as e:
-        # Agar cookie yaroqsiz bo‘lsa, yangilash
-        if "login required" in str(e).lower():
-            await refresh_cookies(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-        else:
-            raise
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=True)
 
     title = info.get("title", "Instagram media")
     description = info.get("description", "")
 
     files = sorted(f for f in temp_dir.iterdir() if f.is_file() and not f.name.startswith('.'))
     return files, title, description
-
 
 # ------------------ Main Handler -----------------------
 
@@ -252,7 +231,7 @@ async def process_message(message: Message):
         await loading_msg.edit_text("⚠️ Telegram yuklashni rad etdi. Keyinroq urinib ko‘ring.")
         await bot.send_message(ADMIN_ID[0], f"BadRequest: {e}\nURL: {url}")
     except Exception as e:
-        await loading_msg.edit_text("⚠️ Yuklashda xatolik yuz berdi.")
+        await loading_msg.edit_text("⚠️ Yuklashda xatolik yuz berdi. Agar akkaunt shaxsiy bo'lsa, yuklab bo'lmaydi.")
         await bot.send_message(ADMIN_ID[0], f"Error: {e}\nURL: {url}")
     finally:
         with contextlib.suppress(Exception):
