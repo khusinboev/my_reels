@@ -35,3 +35,6 @@ ADMIN_ID = ADMINS = [int(admin_id) for admin_id in os.getenv("ADMINS_ID").split(
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(link_preview_is_disabled=True))
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
+
+INSTA_USERNAME = "intelsoftmeta@gmail.com"
+INSTA_PASSWORD = "paro!123"
