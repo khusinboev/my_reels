@@ -119,6 +119,7 @@ async def download_instagram(url: str, temp_dir: Path, progress_cb=None) -> tupl
         "noplaylist": False,  # Allow downloading multiple if carousel
         "playlist_items": "1-10",  # Limit to first 10 if many
         "progress_hooks": [hook],
+        "cookies": "/home/myreels/cookies.txt",  # 🔑 cookie fayl yo‘li
     }
 
     with yt_dlp.YoutubeDL(opts) as ydl:
